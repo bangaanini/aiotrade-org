@@ -333,6 +333,63 @@ export async function getPublishedPublicGuidePdfPosts(limit?: number) {
   return records.map(toPublicGuidePdfPost);
 }
 
+export async function getPublishedPublicGuidePdfPostById(id: string) {
+  const normalizedId = id.trim();
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(normalizedId)) {
+    return null;
+  }
+
+  const tables = await prisma.$queryRaw<Array<{ tableName: string | null }>>`
+    SELECT to_regclass('public.public_guide_pdf_posts')::text AS "tableName"
+  `;
+
+  if (!tables[0]?.tableName) {
+    return null;
+  }
+
+  const record = hasPublicGuidePdfReadDelegate()
+    ? await prisma.publicGuidePdfPost.findFirst({
+        where: {
+          id: normalizedId,
+          isPublished: true,
+        },
+        select: {
+          createdAt: true,
+          description: true,
+          fileAssetId: true,
+          fileUrl: true,
+          id: true,
+          isPublished: true,
+          publishedAt: true,
+          sortOrder: true,
+          title: true,
+          updatedAt: true,
+        },
+      })
+    : (
+        await prisma.$queryRaw<PublicGuidePdfPostRecord[]>`
+          SELECT
+            "id",
+            "title",
+            "description",
+            "file_asset_id" AS "fileAssetId",
+            "file_url" AS "fileUrl",
+            "sort_order" AS "sortOrder",
+            "is_published" AS "isPublished",
+            "published_at" AS "publishedAt",
+            "created_at" AS "createdAt",
+            "updated_at" AS "updatedAt"
+          FROM "public"."public_guide_pdf_posts"
+          WHERE "id" = ${normalizedId}::uuid
+            AND "is_published" = true
+          LIMIT 1
+        `
+      )[0] ?? null;
+
+  return record ? toPublicGuidePdfPost(record as PublicGuidePdfPostRecord) : null;
+}
+
 export async function savePublicGuidePdfPost(input: SavePublicGuidePdfPostInput) {
   const normalizedFileUrl = normalizePublicGuideFileUrl(input.fileUrl);
   const normalizedFileAssetId = input.fileAssetId?.trim() || null;

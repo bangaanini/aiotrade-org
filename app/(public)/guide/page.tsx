@@ -195,15 +195,15 @@ export default async function GuidePage() {
                     <div className="mt-7 flex items-end justify-between gap-4">
                       
 
-                      <Link
+                      <a
                         className="guide-page-card-button inline-flex min-h-12 items-center justify-center gap-2 rounded-[16px] px-5 text-[1rem] font-medium transition duration-300"
-                        href={pdf.fileUrl}
+                        href={`/api/public-guides/pdf/${pdf.id}`}
                         rel="noreferrer"
                         target="_blank"
                       >
                         {guideCopy.openPdf}
                         <ExternalLink className="h-4 w-4" />
-                      </Link>
+                      </a>
                     </div>
                   </div>
                 </article>
