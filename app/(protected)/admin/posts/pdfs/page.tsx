@@ -1,5 +1,5 @@
 import { PublicGuidePdfComposerView } from "@/components/admin/public-guide-pdf-composer-view";
-import { isCloudinaryConfigured } from "@/lib/cloudinary";
+import { isR2Configured } from "@/lib/storage";
 import { getPublicGuideAssets, getAdminPublicGuidePdfPosts } from "@/lib/public-guides";
 
 type PublicGuidePdfPageProps = {
@@ -33,7 +33,7 @@ export default async function PublicGuidePdfPage({ searchParams }: PublicGuidePd
   return (
     <PublicGuidePdfComposerView
       assets={assets}
-      cloudinaryEnabled={isCloudinaryConfigured()}
+      cloudinaryEnabled={isR2Configured()}
       message={message}
       pdfs={pdfs}
       selectedPdfId={selectedPdfId}

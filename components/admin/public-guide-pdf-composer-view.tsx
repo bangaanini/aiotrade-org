@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 
 type PublicGuidePdfComposerViewProps = {
   assets: PublicGuideAsset[];
-  cloudinaryEnabled: boolean;
+  cloudinaryEnabled: boolean; // Now represents R2 configured status
   message?: string;
   pdfs: PublicGuidePdfPost[];
   selectedPdfId?: string;
@@ -296,7 +296,7 @@ export function PublicGuidePdfComposerView({
                 </div>
 
                 <div className="space-y-4 rounded-xl border border-stone-200 bg-stone-50 p-4">
-                  {!cloudinaryEnabled ? <Alert variant="error">Cloudinary belum dikonfigurasi.</Alert> : null}
+                  {!cloudinaryEnabled ? <Alert variant="error">R2 storage belum dikonfigurasi.</Alert> : null}
                   {uploadError ? <Alert variant="error">{uploadError}</Alert> : null}
                   {uploadMessage ? <Alert variant="success">{uploadMessage}</Alert> : null}
 
