@@ -207,22 +207,63 @@ export function MemberGuideComposerView({
     setUploadMessage(null);
 
     try {
-      // Upload directly to new endpoint (server handles R2)
-      const uploadFormData = new FormData();
-      uploadFormData.append("file", file);
-      uploadFormData.append("label", assetLabel.trim() || file.name.replace(/\.[^.]+$/, ""));
-
-      const uploadResponse = await fetch("/api/admin/member-guide-assets/upload", {
+      // Step 1: Get presigned URL from server
+      const presignedResponse = await fetch("/api/admin/member-guide-assets/presigned-url", {
         method: "POST",
-        body: uploadFormData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          filename: file.name,
+          contentType: file.type,
+        }),
+      });
+
+      if (!presignedResponse.ok) {
+        const payload = (await presignedResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Gagal mendapatkan presigned URL.");
+      }
+
+      const { uploadUrl, key, publicUrl } = (await presignedResponse.json()) as {
+        uploadUrl: string;
+        key: string;
+        publicUrl: string;
+      };
+
+      // Step 2: Upload directly to R2 using presigned URL
+      const uploadResponse = await fetch(uploadUrl, {
+        method: "PUT",
+        body: file,
+        headers: {
+          "Content-Type": file.type,
+        },
       });
 
       if (!uploadResponse.ok) {
-        const payload = (await uploadResponse.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Upload PDF gagal.");
+        throw new Error("Upload ke R2 gagal.");
       }
 
-      const payload = (await uploadResponse.json()) as { asset: MemberGuideAsset };
+      // Step 3: Confirm upload and save metadata to database
+      const confirmResponse = await fetch("/api/admin/member-guide-assets/confirm", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          key,
+          publicUrl,
+          filename: file.name,
+          fileSize: file.size,
+          label: assetLabel.trim() || file.name.replace(/\.[^.]+$/, ""),
+        }),
+      });
+
+      if (!confirmResponse.ok) {
+        const payload = (await confirmResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Gagal menyimpan metadata.");
+      }
+
+      const payload = (await confirmResponse.json()) as { asset: MemberGuideAsset };
       setLibrary([payload.asset, ...library.filter((asset) => asset.id !== payload.asset.id)]);
       setDraft((current) => ({
         ...current,

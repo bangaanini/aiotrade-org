@@ -1,6 +1,7 @@
 import "server-only";
 
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import type { StorageProvider, UploadOptions, UploadResult } from "./types";
 
 export class R2StorageProvider implements StorageProvider {
@@ -76,5 +77,37 @@ export class R2StorageProvider implements StorageProvider {
 
   getPublicUrl(publicId: string): string {
     return `https://${this.publicDomain}/${publicId}`;
+  }
+
+  async generatePresignedUploadUrl(options: {
+    filename: string;
+    contentType: string;
+    folder?: string;
+  }): Promise<{ uploadUrl: string; key: string; publicUrl: string }> {
+    const { filename, contentType, folder = "public-guides" } = options;
+
+    // Generate unique key
+    const timestamp = Date.now();
+    const sanitized = filename.replace(/[^a-zA-Z0-9.-]/g, "_");
+    const key = `${folder}/${timestamp}-${sanitized}`;
+
+    // Create presigned URL for PUT operation
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      ContentType: contentType,
+    });
+
+    const uploadUrl = await getSignedUrl(this.client, command, {
+      expiresIn: 3600, // 1 hour
+    });
+
+    const publicUrl = `https://${this.publicDomain}/${key}`;
+
+    return {
+      uploadUrl,
+      key,
+      publicUrl,
+    };
   }
 }
