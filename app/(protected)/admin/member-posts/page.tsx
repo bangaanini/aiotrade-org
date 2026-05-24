@@ -1,5 +1,5 @@
 import { MemberGuideComposerView } from "@/components/admin/member-guide-composer-view";
-import { isCloudinaryConfigured } from "@/lib/cloudinary";
+import { isR2Configured } from "@/lib/storage";
 import { getMemberGuideAssets, getAdminMemberGuidePosts } from "@/lib/member-guides";
 
 type MemberPostsPageProps = {
@@ -32,7 +32,7 @@ export default async function MemberPostsPage({ searchParams }: MemberPostsPageP
   return (
     <MemberGuideComposerView
       assets={assets}
-      cloudinaryEnabled={isCloudinaryConfigured()}
+      cloudinaryEnabled={isR2Configured()}
       guides={guides}
       message={message}
       selectedGuideId={selectedGuideId}

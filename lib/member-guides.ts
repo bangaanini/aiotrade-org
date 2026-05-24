@@ -13,6 +13,7 @@ type MemberGuideAssetRecord = {
   originalFilename: string | null;
   publicId: string;
   secureUrl: string;
+  storageProvider: string;
 };
 
 type MemberGuidePostRecord = {
@@ -40,6 +41,7 @@ type SaveMemberGuideAssetInput = {
   originalFilename?: string | null;
   publicId: string;
   secureUrl: string;
+  storageProvider?: "cloudinary" | "r2";
 };
 
 type SaveMemberGuidePostInput = {
@@ -93,6 +95,7 @@ function toMemberGuideAsset(asset: MemberGuideAssetRecord): MemberGuideAsset {
     originalFilename: asset.originalFilename,
     publicId: asset.publicId,
     secureUrl: asset.secureUrl,
+    storageProvider: asset.storageProvider as "cloudinary" | "r2",
   };
 }
 
@@ -156,6 +159,7 @@ export async function getMemberGuideAssets() {
           originalFilename: true,
           publicId: true,
           secureUrl: true,
+          storageProvider: true,
         },
       })
     : await prisma.$queryRaw<MemberGuideAssetRecord[]>`
@@ -167,6 +171,7 @@ export async function getMemberGuideAssets() {
           "original_filename" AS "originalFilename",
           "bytes",
           "format",
+          "storage_provider" AS "storageProvider",
           "created_at" AS "createdAt"
         FROM "public"."member_guide_assets"
         ORDER BY "created_at" DESC
@@ -188,6 +193,7 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
         originalFilename: input.originalFilename ?? null,
         publicId: input.publicId,
         secureUrl: input.secureUrl,
+        storageProvider: input.storageProvider ?? "r2",
       },
       update: {
         bytes: input.bytes ?? null,
@@ -195,6 +201,7 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
         label: input.label,
         originalFilename: input.originalFilename ?? null,
         secureUrl: input.secureUrl,
+        storageProvider: input.storageProvider ?? "r2",
       },
       select: {
         bytes: true,
@@ -205,6 +212,7 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
         originalFilename: true,
         publicId: true,
         secureUrl: true,
+        storageProvider: true,
       },
     });
 
@@ -218,7 +226,8 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
       "secure_url",
       "original_filename",
       "bytes",
-      "format"
+      "format",
+      "storage_provider"
     )
     VALUES (
       ${input.label},
@@ -226,7 +235,8 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
       ${input.secureUrl},
       ${input.originalFilename ?? null},
       ${input.bytes ?? null},
-      ${input.format ?? null}
+      ${input.format ?? null},
+      ${input.storageProvider ?? "r2"}
     )
     ON CONFLICT ("public_id")
     DO UPDATE SET
@@ -235,6 +245,7 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
       "original_filename" = EXCLUDED."original_filename",
       "bytes" = EXCLUDED."bytes",
       "format" = EXCLUDED."format",
+      "storage_provider" = EXCLUDED."storage_provider",
       "updated_at" = CURRENT_TIMESTAMP
     RETURNING
       "id",
@@ -244,6 +255,7 @@ export async function saveMemberGuideAsset(input: SaveMemberGuideAssetInput) {
       "original_filename" AS "originalFilename",
       "bytes",
       "format",
+      "storage_provider" AS "storageProvider",
       "created_at" AS "createdAt"
   `;
 

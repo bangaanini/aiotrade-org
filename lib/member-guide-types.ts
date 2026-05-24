@@ -48,6 +48,7 @@ export type MemberGuideAsset = {
   originalFilename: string | null;
   publicId: string;
   secureUrl: string;
+  storageProvider: "cloudinary" | "r2";
 };
 
 export type MemberGuidePost = {
