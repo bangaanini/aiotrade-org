@@ -7,15 +7,6 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
-// Configure body size limit for API route
-export const config = {
-  api: {
-    bodyParser: {
-      sizeLimit: "25mb",
-    },
-  },
-};
-
 export async function POST(request: Request) {
   const profile = await getCurrentProfile();
 
