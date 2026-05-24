@@ -139,12 +139,16 @@ export function PublicGuidePdfComposerView({
   }
 
   async function handlePdfUpload(file: File | null) {
-    if (!cloudinaryEnabled) {
-      setUploadError("Cloudinary belum dikonfigurasi.");
+    if (!file) {
       return;
     }
 
-    if (!file) {
+    // Validasi ukuran file maksimal 25 MB
+    const maxSizeInBytes = 25 * 1024 * 1024; // 25 MB
+    if (file.size > maxSizeInBytes) {
+      setUploadError(
+        `Ukuran file terlalu besar. Maksimal 25 MB. File Anda: ${(file.size / 1024 / 1024).toFixed(2)} MB`
+      );
       return;
     }
 
@@ -153,81 +157,32 @@ export function PublicGuidePdfComposerView({
     setUploadMessage(null);
 
     try {
-      const signatureResponse = await fetch("/api/admin/public-guide-assets/signature", {
-        body: JSON.stringify({ filename: file.name }),
-        headers: { "Content-Type": "application/json" },
+      // Upload directly to new endpoint (server handles R2)
+      const uploadFormData = new FormData();
+      uploadFormData.append("file", file);
+      uploadFormData.append("label", assetLabel.trim() || file.name.replace(/\.[^.]+$/, ""));
+
+      const uploadResponse = await fetch("/api/admin/public-guide-assets/upload", {
         method: "POST",
+        body: uploadFormData,
       });
-
-      if (!signatureResponse.ok) {
-        const payload = (await signatureResponse.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Gagal membuat signature upload.");
-      }
-
-      const signaturePayload = (await signatureResponse.json()) as {
-        apiKey: string;
-        cloudName: string;
-        folder: string;
-        signature: string;
-        timestamp: number;
-      };
-
-      const cloudinaryBody = new FormData();
-      cloudinaryBody.append("file", file);
-      cloudinaryBody.append("api_key", signaturePayload.apiKey);
-      cloudinaryBody.append("timestamp", String(signaturePayload.timestamp));
-      cloudinaryBody.append("signature", signaturePayload.signature);
-      cloudinaryBody.append("folder", signaturePayload.folder);
-
-      const uploadResponse = await fetch(
-        `https://api.cloudinary.com/v1_1/${signaturePayload.cloudName}/raw/upload`,
-        {
-          body: cloudinaryBody,
-          method: "POST",
-        },
-      );
 
       if (!uploadResponse.ok) {
-        const payload = (await uploadResponse.json().catch(() => null)) as {
-          error?: { message?: string };
-        } | null;
-        throw new Error(payload?.error?.message ?? "Upload PDF ke Cloudinary gagal.");
+        const payload = (await uploadResponse.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(payload?.error ?? "Upload PDF gagal.");
       }
 
-      const uploaded = (await uploadResponse.json()) as {
-        bytes?: number;
-        format?: string;
-        original_filename?: string;
-        public_id: string;
-        secure_url: string;
-      };
+      const payload = (await uploadResponse.json()) as { asset: PublicGuideAsset };
 
-      const persistResponse = await fetch("/api/admin/public-guide-assets", {
-        body: JSON.stringify({
-          bytes: uploaded.bytes ?? null,
-          format: uploaded.format ?? null,
-          label: assetLabel.trim() || uploaded.original_filename || file.name.replace(/\.[^.]+$/, ""),
-          originalFilename: uploaded.original_filename ?? file.name,
-          publicId: uploaded.public_id,
-          secureUrl: uploaded.secure_url,
-        }),
-        headers: { "Content-Type": "application/json" },
-        method: "POST",
-      });
-
-      if (!persistResponse.ok) {
-        const payload = (await persistResponse.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(payload?.error ?? "Gagal menyimpan metadata PDF.");
-      }
-
-      const payload = (await persistResponse.json()) as { asset: PublicGuideAsset };
       setLibrary((current) => [payload.asset, ...current.filter((asset) => asset.id !== payload.asset.id)]);
       setDraft((current) => ({
         ...current,
         fileAssetId: payload.asset.id,
         fileUrl: payload.asset.secureUrl,
       }));
-      setUploadMessage("PDF publik berhasil diupload dan dipilih.");
+      setUploadMessage(
+        `PDF berhasil diupload ke R2 storage (${(file.size / 1024 / 1024).toFixed(2)} MB)`
+      );
       setAssetLabel("");
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload PDF gagal.");
@@ -345,6 +300,12 @@ export function PublicGuidePdfComposerView({
                   {uploadError ? <Alert variant="error">{uploadError}</Alert> : null}
                   {uploadMessage ? <Alert variant="success">{uploadMessage}</Alert> : null}
 
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                    <p className="text-xs text-blue-800">
+                      <span className="font-semibold">Info:</span> Ukuran maksimal file PDF adalah 25 MB
+                    </p>
+                  </div>
+
                   <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto]">
                     <TextField
                       label="Label PDF Baru"
@@ -376,6 +337,7 @@ export function PublicGuidePdfComposerView({
                   <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
                     {library.map((asset) => {
                       const isSelected = asset.id === draft.fileAssetId;
+                      const isR2 = asset.storageProvider === "r2";
 
                       return (
                         <button
@@ -396,11 +358,28 @@ export function PublicGuidePdfComposerView({
                           type="button"
                         >
                           <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-sm font-semibold text-stone-900">{asset.label}</p>
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-semibold text-stone-900">{asset.label}</p>
+                                <span
+                                  className={cn(
+                                    "rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider",
+                                    isR2
+                                      ? "bg-blue-100 text-blue-700"
+                                      : "bg-orange-100 text-orange-700"
+                                  )}
+                                >
+                                  {isR2 ? "R2" : "Cloudinary"}
+                                </span>
+                              </div>
                               <p className="mt-2 text-xs text-stone-500">
                                 {asset.originalFilename ?? asset.format ?? "PDF document"}
                               </p>
+                              {asset.bytes ? (
+                                <p className="mt-1 text-xs text-stone-400">
+                                  {(asset.bytes / 1024 / 1024).toFixed(2)} MB
+                                </p>
+                              ) : null}
                             </div>
                             {isSelected ? <Check className="h-4 w-4 text-emerald-600" /> : null}
                           </div>

@@ -4,6 +4,7 @@ import { getCurrentProfile } from "@/lib/auth";
 import { getPublicGuideAssets, savePublicGuideAsset } from "@/lib/public-guides";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // 60 seconds timeout for large uploads
 
 const assetSchema = z.object({
   bytes: z.number().int().nonnegative().nullable().optional(),

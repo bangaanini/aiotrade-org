@@ -11,6 +11,7 @@
     "prisma:generate": "prisma generate"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.1053.0",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
     "@supabase/ssr": "^0.10.2",

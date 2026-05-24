@@ -184,6 +184,7 @@ model PublicGuideAsset {
   originalFilename String?  @map("original_filename")
   bytes            Int?
   format           String?
+  storageProvider  String   @default("cloudinary") @map("storage_provider")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 

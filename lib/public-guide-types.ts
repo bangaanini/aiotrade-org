@@ -7,6 +7,7 @@ export type PublicGuideAsset = {
   originalFilename: string | null;
   publicId: string;
   secureUrl: string;
+  storageProvider: "cloudinary" | "r2";
 };
 
 export type PublicGuidePdfPost = {

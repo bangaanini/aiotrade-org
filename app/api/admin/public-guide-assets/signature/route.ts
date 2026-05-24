@@ -8,6 +8,7 @@ import {
 } from "@/lib/cloudinary";
 
 export const runtime = "nodejs";
+export const maxDuration = 60; // 60 seconds timeout for large uploads
 
 const requestSchema = z.object({
   filename: z.string().trim().min(1).max(200),
