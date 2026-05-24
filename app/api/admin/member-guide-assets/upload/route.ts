@@ -5,6 +5,16 @@ import { saveMemberGuideAsset } from "@/lib/member-guides";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+export const dynamic = "force-dynamic";
+
+// Configure body size limit for API route
+export const config = {
+  api: {
+    bodyParser: {
+      sizeLimit: "25mb",
+    },
+  },
+};
 
 export async function POST(request: Request) {
   const profile = await getCurrentProfile();
@@ -20,8 +30,21 @@ export async function POST(request: Request) {
     );
   }
 
+  let formData: FormData;
   try {
-    const formData = await request.formData();
+    formData = await request.formData();
+  } catch (parseError) {
+    console.error("Failed to parse FormData:", parseError);
+    return NextResponse.json(
+      {
+        error: "Gagal membaca file upload. Pastikan ukuran file tidak melebihi 25 MB.",
+        details: parseError instanceof Error ? parseError.message : "Unknown error"
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
     const file = formData.get("file") as File;
     const label = formData.get("label") as string;
 
