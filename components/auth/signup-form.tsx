@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useActionState, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import QRCodeLib from "qrcode";
 import {
   AlertCircle,
   ArrowUpRight,
@@ -224,6 +225,7 @@ export function SignupForm({
     value: "",
     message: null,
   });
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   const normalizedUsername = username.trim().toLowerCase();
   const normalizedEmail = email.trim().toLowerCase();
@@ -434,6 +436,24 @@ export function SignupForm({
       (channel) => channel.code === (paymentFlow.payment?.channelCode ?? selectedChannelCode),
     ) ?? null;
   const currentInstructionKind = paymentInstructionKind(currentPaymentChannel?.type, paymentFlow.payment);
+
+  useEffect(() => {
+    if (!paymentFlow.payment?.qrString) {
+      setQrDataUrl(null);
+      return;
+    }
+
+    QRCodeLib.toDataURL(paymentFlow.payment.qrString, {
+      width: 280,
+      margin: 2,
+      color: {
+        dark: "#0f172a",
+        light: "#ffffff",
+      },
+    })
+      .then((url) => setQrDataUrl(url))
+      .catch(() => setQrDataUrl(null));
+  }, [paymentFlow.payment?.qrString]);
 
   function clearPaymentFlow(message: string) {
     if (!paymentFlow.referenceId) {
@@ -1013,11 +1033,11 @@ export function SignupForm({
                   {currentInstructionKind === "qris" ? (
                     <div className="mt-4 space-y-4">
                       <div className="mx-auto w-full max-w-[280px] overflow-hidden rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                        {paymentFlow.payment.qrImageUrl ? (
+                        {paymentFlow.payment.qrImageUrl || qrDataUrl ? (
                           <img
                             alt="QRIS pembayaran signup"
                             className="aspect-square w-full rounded-xl bg-white object-contain"
-                            src={paymentFlow.payment.qrImageUrl}
+                            src={paymentFlow.payment.qrImageUrl ?? qrDataUrl ?? ""}
                           />
                         ) : (
                           <div className="flex aspect-square items-center justify-center rounded-xl bg-slate-100 p-6 text-center text-sm text-slate-500">
@@ -1035,9 +1055,9 @@ export function SignupForm({
                         </div>
                       </div>
 
-                      
 
-                      
+
+
                     </div>
                   ) : null}
 
