@@ -791,7 +791,7 @@ export function MemberLearningGuideSection({
                     </div>
                   </div>
 
-                  <div className={`px-5 py-5 ${memberGlassPanelClass}`}>
+                  <div className={`flex flex-col px-5 py-5 ${memberGlassPanelClass}`}>
                     <div className="px-1">
                       <h3 className={`text-[1.35rem] font-semibold tracking-tight ${memberTextPrimaryClass}`}>
                         {labels.listTitle}
@@ -801,7 +801,7 @@ export function MemberLearningGuideSection({
                       </p>
                     </div>
 
-                    <div className="mt-5 space-y-3">
+                    <div className="mt-5 max-h-[600px] space-y-3 overflow-y-auto pr-2">
                       {videoGuides.map((guide) => {
                         const active = guide.id === selectedVideo.id;
                         const unlocked = isGuideUnlocked(guide);
