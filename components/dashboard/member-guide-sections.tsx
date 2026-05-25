@@ -767,13 +767,8 @@ export function MemberLearningGuideSection({
                           {isGuideUnlocked(selectedVideo) ? labels.nowPlaying : labels.lockedTitle}
                         </p>
                         <span
-                          className={`inline-flex rounded-full px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em] ${
-                            selectedVideo.isPaid
-                              ? isGuideUnlocked(selectedVideo)
-                                ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-200"
-                                : "bg-amber-500/12 text-amber-700 dark:text-amber-200"
-                              : "bg-sky-500/12 text-sky-700 dark:text-sky-200"
-                          }`}
+                          className="inline-flex rounded-full px-2.5 py-1 text-[0.7rem] font-semibold uppercase tracking-[0.14em]"
+                          style={getGuideBadgeStyle(selectedVideo, isGuideUnlocked(selectedVideo))}
                         >
                           {selectedVideo.isPaid
                             ? isGuideUnlocked(selectedVideo)
