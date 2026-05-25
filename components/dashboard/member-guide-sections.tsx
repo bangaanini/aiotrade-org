@@ -902,13 +902,8 @@ export function MemberLearningGuideSection({
                                 {guide.title}
                               </h3>
                               <span
-                                className={`rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em] ${
-                                  guide.isPaid
-                                    ? unlocked
-                                      ? "bg-emerald-500/12 text-emerald-700 dark:text-emerald-200"
-                                      : "bg-amber-500/12 text-amber-700 dark:text-amber-200"
-                                    : "bg-sky-500/12 text-sky-700 dark:text-sky-200"
-                                }`}
+                                className="rounded-full px-2.5 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.14em]"
+                                style={getGuideBadgeStyle(guide, unlocked)}
                               >
                                 {guide.isPaid
                                   ? unlocked
