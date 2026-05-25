@@ -981,7 +981,7 @@ export function SignupForm({
               </div>
               <Button
                 className="h-11 w-full rounded-xl bg-sky-500 px-5 text-sm font-semibold text-white shadow-[0_14px_28px_rgba(14,165,233,0.22)] hover:bg-sky-600 sm:w-auto"
-                disabled={!hasHydrated || !canCreatePayment}
+                disabled={!canCreatePayment}
                 onClick={handleCreatePayment}
                 type="button"
               >
