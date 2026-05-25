@@ -6,6 +6,10 @@ import {
   checkPaymenkuTransactionStatus,
   createPaymenkuTransaction,
 } from "@/lib/paymenku";
+import {
+  checkPakasirTransactionStatus,
+  createPakasirTransaction,
+} from "@/lib/pakasir";
 import { getPaymentGatewaySettings } from "@/lib/payment-gateway-settings";
 import { getSiteSeoSettings } from "@/lib/site-seo";
 import type {
@@ -295,10 +299,6 @@ export async function createSignupPayment(input: {
     throw new Error("Pembayaran pendaftaran belum diaktifkan.");
   }
 
-  if (!settings.paymenkuApiKey) {
-    throw new Error("API key Paymenku belum diatur.");
-  }
-
   if (!settings.activeChannelCodes.includes(input.channelCode)) {
     throw new Error("Metode pembayaran tidak tersedia.");
   }
@@ -326,32 +326,67 @@ export async function createSignupPayment(input: {
   });
 
   try {
-    const transaction = await createPaymenkuTransaction(settings.paymenkuApiKey, {
-      amount: selectedPlan.price,
-      channelCode: input.channelCode,
-      customerEmail: input.customerEmail,
-      customerName: input.customerName,
-      customerPhone: input.customerPhone,
-      referenceId,
-      returnUrl: `${siteSeo.siteUrl.replace(/\/$/, "")}/signup`,
-    });
+    if (settings.provider === "pakasir") {
+      if (!settings.pakasirSlug || !settings.pakasirApiKey) {
+        throw new Error("Pakasir belum dikonfigurasi.");
+      }
 
-    const updated = await updateLocalPaymentRecord(referenceId, {
-      expiresAt: transaction.expiresAt,
-      message: transaction.message,
-      planId: selectedPlan.id,
-      planLabel: selectedPlan.label,
-      paymentName: transaction.paymentName,
-      paymentNumber: transaction.paymentNumber,
-      paymentUrl: transaction.paymentUrl,
-      providerTransactionId: transaction.providerTransactionId,
-      qrImageUrl: transaction.qrImageUrl,
-      qrString: transaction.qrString,
-      rawCreateResponse: transaction.raw,
-      status: transaction.status,
-    });
+      const transaction = await createPakasirTransaction(
+        settings.pakasirSlug,
+        settings.pakasirApiKey,
+        {
+          amount: selectedPlan.price,
+          orderId: referenceId,
+          method: input.channelCode,
+        }
+      );
 
-    return toPublicState(updated);
+      const updated = await updateLocalPaymentRecord(referenceId, {
+        expiresAt: transaction.expiresAt,
+        message: transaction.message,
+        planId: selectedPlan.id,
+        planLabel: selectedPlan.label,
+        paymentName: transaction.paymentName,
+        paymentNumber: transaction.paymentNumber,
+        providerTransactionId: transaction.providerTransactionId,
+        qrString: transaction.qrString,
+        rawCreateResponse: transaction.raw,
+        status: transaction.status,
+      });
+
+      return toPublicState(updated);
+    } else {
+      if (!settings.paymenkuApiKey) {
+        throw new Error("API key Paymenku belum diatur.");
+      }
+
+      const transaction = await createPaymenkuTransaction(settings.paymenkuApiKey, {
+        amount: selectedPlan.price,
+        channelCode: input.channelCode,
+        customerEmail: input.customerEmail,
+        customerName: input.customerName,
+        customerPhone: input.customerPhone,
+        referenceId,
+        returnUrl: `${siteSeo.siteUrl.replace(/\/$/, "")}/signup`,
+      });
+
+      const updated = await updateLocalPaymentRecord(referenceId, {
+        expiresAt: transaction.expiresAt,
+        message: transaction.message,
+        planId: selectedPlan.id,
+        planLabel: selectedPlan.label,
+        paymentName: transaction.paymentName,
+        paymentNumber: transaction.paymentNumber,
+        paymentUrl: transaction.paymentUrl,
+        providerTransactionId: transaction.providerTransactionId,
+        qrImageUrl: transaction.qrImageUrl,
+        qrString: transaction.qrString,
+        rawCreateResponse: transaction.raw,
+        status: transaction.status,
+      });
+
+      return toPublicState(updated);
+    }
   } catch (error) {
     await updateLocalPaymentRecord(referenceId, {
       message: error instanceof Error ? error.message : "Gagal membuat pembayaran.",
@@ -419,11 +454,6 @@ export async function getSignupPayment(referenceId: string) {
 
 export async function refreshSignupPaymentStatus(referenceId: string) {
   const settings = await getPaymentGatewaySettings();
-
-  if (!settings.paymenkuApiKey) {
-    throw new Error("API key Paymenku belum diatur.");
-  }
-
   const payment = await getSignupPayment(referenceId);
 
   if (!payment) {
@@ -434,25 +464,57 @@ export async function refreshSignupPaymentStatus(referenceId: string) {
     return toPublicState(payment);
   }
 
-  const statusSnapshot = await checkPaymenkuTransactionStatus(
-    settings.paymenkuApiKey,
-    payment.providerTransactionId ?? payment.referenceId,
-  );
+  if (settings.provider === "pakasir") {
+    if (!settings.pakasirSlug || !settings.pakasirApiKey) {
+      throw new Error("Pakasir belum dikonfigurasi.");
+    }
 
-  const updated = await updateLocalPaymentRecord(referenceId, {
-    expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
-    message: statusSnapshot.message ?? payment.message,
-    paymentName: statusSnapshot.paymentName ?? payment.paymentName,
-    paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
-    paymentUrl: statusSnapshot.paymentUrl ?? payment.paymentUrl,
-    providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
-    qrImageUrl: statusSnapshot.qrImageUrl ?? payment.qrImageUrl,
-    qrString: statusSnapshot.qrString ?? payment.qrString,
-    rawStatusResponse: statusSnapshot.raw,
-    status: statusSnapshot.status,
-  });
+    const statusSnapshot = await checkPakasirTransactionStatus(
+      settings.pakasirSlug,
+      settings.pakasirApiKey,
+      {
+        amount: payment.amount,
+        orderId: payment.referenceId,
+      }
+    );
 
-  return toPublicState(updated);
+    const updated = await updateLocalPaymentRecord(referenceId, {
+      expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
+      message: statusSnapshot.message ?? payment.message,
+      paymentName: statusSnapshot.paymentName ?? payment.paymentName,
+      paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
+      providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
+      qrString: statusSnapshot.qrString ?? payment.qrString,
+      rawStatusResponse: statusSnapshot.raw,
+      status: statusSnapshot.status,
+    });
+
+    return toPublicState(updated);
+  } else {
+    if (!settings.paymenkuApiKey) {
+      throw new Error("API key Paymenku belum diatur.");
+    }
+
+    const statusSnapshot = await checkPaymenkuTransactionStatus(
+      settings.paymenkuApiKey,
+      payment.providerTransactionId ?? payment.referenceId,
+    );
+
+    const updated = await updateLocalPaymentRecord(referenceId, {
+      expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
+      message: statusSnapshot.message ?? payment.message,
+      paymentName: statusSnapshot.paymentName ?? payment.paymentName,
+      paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
+      paymentUrl: statusSnapshot.paymentUrl ?? payment.paymentUrl,
+      providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
+      qrImageUrl: statusSnapshot.qrImageUrl ?? payment.qrImageUrl,
+      qrString: statusSnapshot.qrString ?? payment.qrString,
+      rawStatusResponse: statusSnapshot.raw,
+      status: statusSnapshot.status,
+    });
+
+    return toPublicState(updated);
+  }
 }
 
 export async function verifyPaidSignupPayment(referenceId: string | null | undefined) {

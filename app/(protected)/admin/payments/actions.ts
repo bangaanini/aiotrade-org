@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireAdminProfile } from "@/lib/auth";
-import { normalizePlanId, PAYMENKU_CHANNELS } from "@/lib/payment-gateway-config";
+import { normalizePlanId, PAYMENKU_CHANNELS, PAKASIR_CHANNELS } from "@/lib/payment-gateway-config";
 import {
   type PaymentGatewaySettings,
   updatePaymentGatewaySettings,
@@ -11,6 +11,9 @@ import {
 import type { PaymentSubscriptionPlan } from "@/lib/payment-gateway-types";
 
 const paymenkuChannelCodes = PAYMENKU_CHANNELS.map((channel) => channel.code);
+const pakasirChannelCodes = PAKASIR_CHANNELS.map((channel) => channel.code);
+const allChannelCodes = [...new Set([...paymenkuChannelCodes, ...pakasirChannelCodes])];
+
 const subscriptionPlanSchema = z.object({
   description: z.string().trim().min(1),
   durationMonths: z.number().int().min(0),
@@ -37,16 +40,43 @@ const subscriptionPlanSchema = z.object({
 });
 
 const paymentSettingsSchema = z.object({
-  activeChannelCodes: z.array(z.enum(paymenkuChannelCodes as [string, ...string[]])).min(1),
+  activeChannelCodes: z.array(z.enum(allChannelCodes as [string, ...string[]])).min(1),
   checkoutNote: z.string().trim().min(1),
-  defaultChannelCode: z.enum(paymenkuChannelCodes as [string, ...string[]]),
+  defaultChannelCode: z.enum(allChannelCodes as [string, ...string[]]),
   defaultPlanId: z.string().trim().min(1).transform((value) => normalizePlanId(value)),
   isEnabled: z.boolean(),
-  paymenkuApiKey: z.string().trim().min(1, "Masukkan API key Paymenku."),
+  paymenkuApiKey: z.string().trim().optional().nullable(),
+  pakasirSlug: z.string().trim().optional().nullable(),
+  pakasirApiKey: z.string().trim().optional().nullable(),
   priceLabel: z.string().trim().min(1),
-  provider: z.literal("paymenku"),
+  provider: z.enum(["paymenku", "pakasir"]),
   registrationPrice: z.number().int().min(1000),
   subscriptionPlans: z.array(subscriptionPlanSchema).min(1),
+}).superRefine((data, ctx) => {
+  if (data.provider === "paymenku" && !data.paymenkuApiKey) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Masukkan API key Paymenku.",
+      path: ["paymenkuApiKey"],
+    });
+  }
+
+  if (data.provider === "pakasir") {
+    if (!data.pakasirSlug) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Masukkan slug Pakasir.",
+        path: ["pakasirSlug"],
+      });
+    }
+    if (!data.pakasirApiKey) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Masukkan API key Pakasir.",
+        path: ["pakasirApiKey"],
+      });
+    }
+  }
 });
 
 function readString(formData: FormData, key: string) {
@@ -56,7 +86,9 @@ function readString(formData: FormData, key: string) {
 export async function updatePaymentSettingsAction(formData: FormData) {
   await requireAdminProfile();
 
-  const activeChannelCodes = PAYMENKU_CHANNELS
+  const provider = readString(formData, "provider") as "paymenku" | "pakasir";
+  const allChannels = provider === "pakasir" ? PAKASIR_CHANNELS : PAYMENKU_CHANNELS;
+  const activeChannelCodes = allChannels
     .map((channel) => channel.code)
     .filter((code) => formData.getAll("activeChannelCodes").includes(code));
   const rawSubscriptionPlans = readString(formData, "subscriptionPlans");
@@ -81,9 +113,11 @@ export async function updatePaymentSettingsAction(formData: FormData) {
     defaultChannelCode: readString(formData, "defaultChannelCode"),
     defaultPlanId: readString(formData, "defaultPlanId"),
     isEnabled: readString(formData, "isEnabled") === "true",
-    paymenkuApiKey: readString(formData, "paymenkuApiKey"),
+    paymenkuApiKey: readString(formData, "paymenkuApiKey") || null,
+    pakasirSlug: readString(formData, "pakasirSlug") || null,
+    pakasirApiKey: readString(formData, "pakasirApiKey") || null,
     priceLabel: "placeholder",
-    provider: "paymenku",
+    provider,
     registrationPrice: normalizedPlans.find((plan) => plan.id === normalizePlanId(readString(formData, "defaultPlanId")))?.price ?? 0,
     subscriptionPlans: normalizedPlans,
   });

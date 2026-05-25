@@ -77,6 +77,8 @@ model PaymentGatewaySettings {
   provider           String   @default("paymenku")
   isEnabled          Boolean  @default(false) @map("is_enabled")
   paymenkuApiKey     String?  @map("paymenku_api_key")
+  pakasirSlug        String?  @map("pakasir_slug")
+  pakasirApiKey      String?  @map("pakasir_api_key")
   activeChannelCodes Json     @map("active_channel_codes")
   defaultChannelCode String?  @map("default_channel_code")
   subscriptionPlans  Json     @map("subscription_plans")

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { formatIdrCurrency, normalizePlanId, PAYMENKU_CHANNELS } from "@/lib/payment-gateway-config";
+import { formatIdrCurrency, normalizePlanId, PAYMENKU_CHANNELS, PAKASIR_CHANNELS } from "@/lib/payment-gateway-config";
 import type { PaymentGatewaySettings } from "@/lib/payment-gateway-settings";
 import type { PaymentSubscriptionPlan } from "@/lib/payment-gateway-types";
 import { cn } from "@/lib/utils";
@@ -67,6 +67,7 @@ function createLifetimePlan() {
 export function PaymentSettingsView({ settings, status }: PaymentSettingsViewProps) {
   const [plans, setPlans] = useState<PaymentSubscriptionPlan[]>(settings.subscriptionPlans);
   const [defaultPlanId, setDefaultPlanId] = useState(settings.defaultPlanId);
+  const [provider, setProvider] = useState<"paymenku" | "pakasir">(settings.provider);
 
   const normalizedPlans = useMemo(
     () =>
@@ -82,6 +83,8 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
     [plans],
   );
   const hasLifetimePlan = normalizedPlans.some((plan) => plan.isLifetime);
+
+  const activeChannels = provider === "pakasir" ? PAKASIR_CHANNELS : PAYMENKU_CHANNELS;
 
   const effectiveDefaultPlan =
     normalizedPlans.find((plan) => plan.id === defaultPlanId) ?? normalizedPlans[0];
@@ -152,7 +155,7 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
         <CardHeader>
           <CardTitle>Payment Gateway Settings</CardTitle>
           <CardDescription>
-            Kelola Paymenku, metode pembayaran aktif, dan pilihan langganan yang akan dipakai di signup serta menu
+            Kelola payment gateway (Paymenku atau Pakasir), metode pembayaran aktif, dan pilihan langganan yang akan dipakai di signup serta menu
             langganan member.
           </CardDescription>
         </CardHeader>
@@ -202,12 +205,13 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
           <form action={updatePaymentSettingsAction} className="space-y-6">
             <input name="subscriptionPlans" type="hidden" value={JSON.stringify(normalizedPlans)} />
             <input name="defaultPlanId" type="hidden" value={normalizePlanId(defaultPlanId || effectiveDefaultPlan?.id)} />
+            <input name="provider" type="hidden" value={provider} />
 
             <div className="grid gap-4 md:grid-cols-2">
               <div className="rounded-xl border border-stone-200 bg-stone-50 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-stone-950">Aktifkan Paymenku</p>
+                    <p className="text-sm font-semibold text-stone-950">Aktifkan Payment Gateway</p>
                     <p className="mt-1 text-sm leading-6 text-stone-600">
                       Saat aktif, user wajib membuat pembayaran dulu sebelum tombol buat akun bisa dipakai.
                     </p>
@@ -220,6 +224,32 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
               </div>
 
               <div className="grid gap-2">
+                <Label>Pilih Provider</Label>
+                <div className="flex gap-4">
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-stone-700">
+                    <input
+                      checked={provider === "paymenku"}
+                      onChange={() => setProvider("paymenku")}
+                      type="radio"
+                      name="providerRadio"
+                    />
+                    Paymenku
+                  </label>
+                  <label className="inline-flex items-center gap-2 text-sm font-medium text-stone-700">
+                    <input
+                      checked={provider === "pakasir"}
+                      onChange={() => setProvider("pakasir")}
+                      type="radio"
+                      name="providerRadio"
+                    />
+                    Pakasir
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {provider === "paymenku" ? (
+              <div className="grid gap-2">
                 <Label htmlFor="paymenkuApiKey">Paymenku API Key</Label>
                 <Input
                   defaultValue={settings.paymenkuApiKey ?? ""}
@@ -230,7 +260,32 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
                 />
                 <p className="text-xs text-stone-500">Disimpan server-side untuk create transaction dan check status.</p>
               </div>
-            </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="grid gap-2">
+                  <Label htmlFor="pakasirSlug">Pakasir Slug</Label>
+                  <Input
+                    defaultValue={settings.pakasirSlug ?? ""}
+                    id="pakasirSlug"
+                    name="pakasirSlug"
+                    placeholder="your-project-slug"
+                    type="text"
+                  />
+                  <p className="text-xs text-stone-500">Slug project Pakasir Anda.</p>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="pakasirApiKey">Pakasir API Key</Label>
+                  <Input
+                    defaultValue={settings.pakasirApiKey ?? ""}
+                    id="pakasirApiKey"
+                    name="pakasirApiKey"
+                    placeholder="your-api-key"
+                    type="password"
+                  />
+                  <p className="text-xs text-stone-500">API key untuk autentikasi Pakasir.</p>
+                </div>
+              </div>
+            )}
 
             <div className="grid gap-2">
               <Label htmlFor="checkoutNote">Catatan Checkout di Signup</Label>
@@ -380,7 +435,7 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
               </div>
 
               <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                {PAYMENKU_CHANNELS.map((channel) => {
+                {activeChannels.map((channel) => {
                   const Icon = channelIcon(channel.type);
                   const checked = settings.activeChannelCodes.includes(channel.code);
 
@@ -419,7 +474,7 @@ export function PaymentSettingsView({ settings, status }: PaymentSettingsViewPro
                 id="defaultChannelCode"
                 name="defaultChannelCode"
               >
-                {PAYMENKU_CHANNELS.map((channel) => (
+                {activeChannels.map((channel) => (
                   <option key={channel.code} value={channel.code}>
                     {channel.name}
                   </option>

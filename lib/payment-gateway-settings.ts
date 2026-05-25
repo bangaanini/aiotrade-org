@@ -6,6 +6,7 @@ import {
   DEFAULT_SUBSCRIPTION_PLANS,
   normalizePlanId,
   PAYMENKU_CHANNELS,
+  PAKASIR_CHANNELS,
 } from "@/lib/payment-gateway-config";
 import type {
   PaymentSubscriptionPlan,
@@ -19,6 +20,7 @@ const envPaymenkuApiKey =
   null;
 
 const paymenkuChannelCodes = PAYMENKU_CHANNELS.map((channel) => channel.code);
+const pakasirChannelCodes = PAKASIR_CHANNELS.map((channel) => channel.code);
 const defaultSubscriptionPlans = DEFAULT_SUBSCRIPTION_PLANS.map((plan) => ({ ...plan }));
 
 const subscriptionPlanSchema = z.object({
@@ -47,16 +49,16 @@ const subscriptionPlanSchema = z.object({
 });
 
 const paymentGatewaySettingsSchema = z.object({
-  activeChannelCodes: z.array(z.enum(paymenkuChannelCodes as [string, ...string[]])).default([]),
+  activeChannelCodes: z.array(z.string()).default([]),
   checkoutNote: z.string().trim().min(1),
-  defaultChannelCode: z
-    .union([z.enum(paymenkuChannelCodes as [string, ...string[]]), z.literal(""), z.null()])
-    .transform((value) => value || null),
+  defaultChannelCode: z.string().nullable(),
   defaultPlanId: z.string().trim().min(1).transform((value) => normalizePlanId(value)),
   isEnabled: z.boolean(),
   paymenkuApiKey: z.string().trim().optional().nullable(),
+  pakasirSlug: z.string().trim().optional().nullable(),
+  pakasirApiKey: z.string().trim().optional().nullable(),
   priceLabel: z.string().trim().min(1),
-  provider: z.string().trim().min(1),
+  provider: z.enum(["paymenku", "pakasir"]),
   registrationPrice: z.number().int().min(1000),
   subscriptionPlans: z.array(subscriptionPlanSchema).min(1),
 });
@@ -70,6 +72,8 @@ export const defaultPaymentGatewaySettings: PaymentGatewaySettings = {
   defaultPlanId: "1-year",
   isEnabled: true,
   paymenkuApiKey: envPaymenkuApiKey,
+  pakasirSlug: null,
+  pakasirApiKey: null,
   priceLabel: "1 Tahun",
   provider: "paymenku",
   registrationPrice: 100000,
@@ -139,6 +143,14 @@ function normalizeSettings(value: unknown): PaymentGatewaySettings {
       typeof raw.paymenkuApiKey === "string" || raw.paymenkuApiKey === null
         ? raw.paymenkuApiKey
         : envPaymenkuApiKey,
+    pakasirSlug:
+      typeof raw.pakasirSlug === "string" || raw.pakasirSlug === null
+        ? raw.pakasirSlug
+        : null,
+    pakasirApiKey:
+      typeof raw.pakasirApiKey === "string" || raw.pakasirApiKey === null
+        ? raw.pakasirApiKey
+        : null,
     priceLabel: typeof raw.priceLabel === "string" ? raw.priceLabel : defaultPaymentGatewaySettings.priceLabel,
     provider: typeof raw.provider === "string" ? raw.provider : defaultPaymentGatewaySettings.provider,
     registrationPrice:
@@ -182,6 +194,8 @@ function normalizeSettings(value: unknown): PaymentGatewaySettings {
     defaultChannelCode,
     defaultPlanId: defaultPlan.id,
     paymenkuApiKey: parsed.data.paymenkuApiKey?.trim() || envPaymenkuApiKey,
+    pakasirSlug: parsed.data.pakasirSlug?.trim() || null,
+    pakasirApiKey: parsed.data.pakasirApiKey?.trim() || null,
     priceLabel: defaultPlan.label,
     registrationPrice: defaultPlan.price,
     subscriptionPlans,
@@ -208,6 +222,8 @@ export async function getPaymentGatewaySettings(): Promise<PaymentGatewaySetting
             defaultPlanId: true,
             isEnabled: true,
             paymenkuApiKey: true,
+            pakasirSlug: true,
+            pakasirApiKey: true,
             priceLabel: true,
             provider: true,
             registrationPrice: true,
@@ -222,6 +238,8 @@ export async function getPaymentGatewaySettings(): Promise<PaymentGatewaySetting
             defaultPlanId: string;
             isEnabled: boolean;
             paymenkuApiKey: string | null;
+            pakasirSlug: string | null;
+            pakasirApiKey: string | null;
             priceLabel: string;
             provider: string;
             registrationPrice: number;
@@ -234,6 +252,8 @@ export async function getPaymentGatewaySettings(): Promise<PaymentGatewaySetting
               "default_plan_id" AS "defaultPlanId",
               "is_enabled" AS "isEnabled",
               "paymenku_api_key" AS "paymenkuApiKey",
+              "pakasir_slug" AS "pakasirSlug",
+              "pakasir_api_key" AS "pakasirApiKey",
               "price_label" AS "priceLabel",
               "provider",
               "registration_price" AS "registrationPrice",
@@ -273,6 +293,8 @@ export async function updatePaymentGatewaySettings(value: PaymentGatewaySettings
       "provider",
       "is_enabled",
       "paymenku_api_key",
+      "pakasir_slug",
+      "pakasir_api_key",
       "active_channel_codes",
       "default_channel_code",
       "subscription_plans",
@@ -286,6 +308,8 @@ export async function updatePaymentGatewaySettings(value: PaymentGatewaySettings
       ${parsed.provider},
       ${parsed.isEnabled},
       ${parsed.paymenkuApiKey},
+      ${parsed.pakasirSlug},
+      ${parsed.pakasirApiKey},
       ${JSON.stringify(parsed.activeChannelCodes)}::jsonb,
       ${parsed.defaultChannelCode},
       ${JSON.stringify(parsed.subscriptionPlans)}::jsonb,
@@ -298,6 +322,8 @@ export async function updatePaymentGatewaySettings(value: PaymentGatewaySettings
       "provider" = EXCLUDED."provider",
       "is_enabled" = EXCLUDED."is_enabled",
       "paymenku_api_key" = EXCLUDED."paymenku_api_key",
+      "pakasir_slug" = EXCLUDED."pakasir_slug",
+      "pakasir_api_key" = EXCLUDED."pakasir_api_key",
       "active_channel_codes" = EXCLUDED."active_channel_codes",
       "default_channel_code" = EXCLUDED."default_channel_code",
       "subscription_plans" = EXCLUDED."subscription_plans",
@@ -312,8 +338,10 @@ export async function updatePaymentGatewaySettings(value: PaymentGatewaySettings
 export async function getPublicSignupPaymentSettings(): Promise<PublicSignupPaymentSettings> {
   const settings = await getPaymentGatewaySettings();
 
+  const allChannels = settings.provider === "pakasir" ? PAKASIR_CHANNELS : PAYMENKU_CHANNELS;
+
   return {
-    activeChannels: PAYMENKU_CHANNELS.filter((channel) => settings.activeChannelCodes.includes(channel.code)),
+    activeChannels: allChannels.filter((channel) => settings.activeChannelCodes.includes(channel.code)),
     checkoutNote: settings.checkoutNote,
     defaultChannelCode: settings.defaultChannelCode,
     defaultPlanId: settings.defaultPlanId,

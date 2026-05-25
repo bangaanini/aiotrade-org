@@ -6,6 +6,10 @@ import {
   checkPaymenkuTransactionStatus,
   createPaymenkuTransaction,
 } from "@/lib/paymenku";
+import {
+  checkPakasirTransactionStatus,
+  createPakasirTransaction,
+} from "@/lib/pakasir";
 import { getPaymentGatewaySettings } from "@/lib/payment-gateway-settings";
 import type { MemberGuidePaymentPublicState } from "@/lib/member-guide-payment-types";
 import { getMemberGuidePostById } from "@/lib/member-guides";
@@ -242,10 +246,6 @@ export async function createMemberGuidePayment(input: {
     throw new Error("Pembayaran sedang dimatikan dari pengaturan admin.");
   }
 
-  if (!settings.paymenkuApiKey) {
-    throw new Error("API key Paymenku belum diatur.");
-  }
-
   if (!settings.activeChannelCodes.includes(input.channelCode)) {
     throw new Error("Metode pembayaran tidak aktif.");
   }
@@ -285,35 +285,73 @@ export async function createMemberGuidePayment(input: {
     },
   });
 
-  const transaction = await createPaymenkuTransaction(settings.paymenkuApiKey, {
-    amount: guide.price,
-    channelCode: input.channelCode,
-    customerEmail,
-    customerName: input.profile.username,
-    customerPhone: input.profile.whatsapp ?? undefined,
-    referenceId,
-    returnUrl: siteSeo.siteUrl,
-  });
+  if (settings.provider === "pakasir") {
+    if (!settings.pakasirSlug || !settings.pakasirApiKey) {
+      throw new Error("Pakasir belum dikonfigurasi.");
+    }
 
-  const updated = await updateMemberGuidePayment(referenceId, {
-    expiresAt: transaction.expiresAt ?? null,
-    message: transaction.message ?? null,
-    paymentName: transaction.paymentName ?? null,
-    paymentNumber: transaction.paymentNumber ?? null,
-    paymentUrl: transaction.paymentUrl ?? null,
-    providerTransactionId: transaction.providerTransactionId ?? null,
-    qrImageUrl: transaction.qrImageUrl ?? null,
-    qrString: transaction.qrString ?? null,
-    rawCreateResponse: transaction.raw ?? null,
-    status: transaction.status === "paid" || transaction.status === "failed" ? transaction.status : "pending",
-  });
+    const transaction = await createPakasirTransaction(
+      settings.pakasirSlug,
+      settings.pakasirApiKey,
+      {
+        amount: guide.price,
+        orderId: referenceId,
+        method: input.channelCode,
+      }
+    );
 
-  if (updated.status === "paid") {
-    await consumeAndUnlockGuide(updated);
-    return toPublicState({ ...updated, consumedAt: new Date() }, true);
+    const updated = await updateMemberGuidePayment(referenceId, {
+      expiresAt: transaction.expiresAt ?? null,
+      message: transaction.message ?? null,
+      paymentName: transaction.paymentName ?? null,
+      paymentNumber: transaction.paymentNumber ?? null,
+      providerTransactionId: transaction.providerTransactionId ?? null,
+      qrString: transaction.qrString ?? null,
+      rawCreateResponse: transaction.raw ?? null,
+      status: transaction.status === "paid" || transaction.status === "failed" ? transaction.status : "pending",
+    });
+
+    if (updated.status === "paid") {
+      await consumeAndUnlockGuide(updated);
+      return toPublicState({ ...updated, consumedAt: new Date() }, true);
+    }
+
+    return toPublicState(updated, false);
+  } else {
+    if (!settings.paymenkuApiKey) {
+      throw new Error("API key Paymenku belum diatur.");
+    }
+
+    const transaction = await createPaymenkuTransaction(settings.paymenkuApiKey, {
+      amount: guide.price,
+      channelCode: input.channelCode,
+      customerEmail,
+      customerName: input.profile.username,
+      customerPhone: input.profile.whatsapp ?? undefined,
+      referenceId,
+      returnUrl: siteSeo.siteUrl,
+    });
+
+    const updated = await updateMemberGuidePayment(referenceId, {
+      expiresAt: transaction.expiresAt ?? null,
+      message: transaction.message ?? null,
+      paymentName: transaction.paymentName ?? null,
+      paymentNumber: transaction.paymentNumber ?? null,
+      paymentUrl: transaction.paymentUrl ?? null,
+      providerTransactionId: transaction.providerTransactionId ?? null,
+      qrImageUrl: transaction.qrImageUrl ?? null,
+      qrString: transaction.qrString ?? null,
+      rawCreateResponse: transaction.raw ?? null,
+      status: transaction.status === "paid" || transaction.status === "failed" ? transaction.status : "pending",
+    });
+
+    if (updated.status === "paid") {
+      await consumeAndUnlockGuide(updated);
+      return toPublicState({ ...updated, consumedAt: new Date() }, true);
+    }
+
+    return toPublicState(updated, false);
   }
-
-  return toPublicState(updated, false);
 }
 
 export async function refreshMemberGuidePaymentStatus(input: {
@@ -321,11 +359,6 @@ export async function refreshMemberGuidePaymentStatus(input: {
   referenceId: string;
 }) {
   const settings = await getPaymentGatewaySettings();
-
-  if (!settings.paymenkuApiKey) {
-    throw new Error("API key Paymenku belum diatur.");
-  }
-
   const payment = await getMemberGuidePayment(input.referenceId);
 
   if (!payment || payment.profileId !== input.profileId) {
@@ -342,32 +375,73 @@ export async function refreshMemberGuidePaymentStatus(input: {
     return toPublicState(payment, true);
   }
 
-  const statusSnapshot = await checkPaymenkuTransactionStatus(
-    settings.paymenkuApiKey,
-    payment.providerTransactionId ?? payment.referenceId,
-  );
+  if (settings.provider === "pakasir") {
+    if (!settings.pakasirSlug || !settings.pakasirApiKey) {
+      throw new Error("Pakasir belum dikonfigurasi.");
+    }
 
-  const updated = await updateMemberGuidePayment(payment.referenceId, {
-    expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
-    message: statusSnapshot.message ?? payment.message,
-    paymentName: statusSnapshot.paymentName ?? payment.paymentName,
-    paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
-    paymentUrl: statusSnapshot.paymentUrl ?? payment.paymentUrl,
-    providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
-    qrImageUrl: statusSnapshot.qrImageUrl ?? payment.qrImageUrl,
-    qrString: statusSnapshot.qrString ?? payment.qrString,
-    rawStatusResponse: statusSnapshot.raw ?? null,
-    status:
-      statusSnapshot.status === "paid" || statusSnapshot.status === "failed"
-        ? statusSnapshot.status
-        : "pending",
-  });
+    const statusSnapshot = await checkPakasirTransactionStatus(
+      settings.pakasirSlug,
+      settings.pakasirApiKey,
+      {
+        amount: payment.amount,
+        orderId: payment.referenceId,
+      }
+    );
 
-  const isPaid = updated.status === "paid";
+    const updated = await updateMemberGuidePayment(payment.referenceId, {
+      expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
+      message: statusSnapshot.message ?? payment.message,
+      paymentName: statusSnapshot.paymentName ?? payment.paymentName,
+      paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
+      providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
+      qrString: statusSnapshot.qrString ?? payment.qrString,
+      rawStatusResponse: statusSnapshot.raw ?? null,
+      status:
+        statusSnapshot.status === "paid" || statusSnapshot.status === "failed"
+          ? statusSnapshot.status
+          : "pending",
+    });
 
-  if (isPaid) {
-    await consumeAndUnlockGuide(updated);
+    const isPaid = updated.status === "paid";
+
+    if (isPaid) {
+      await consumeAndUnlockGuide(updated);
+    }
+
+    return toPublicState(updated, isPaid);
+  } else {
+    if (!settings.paymenkuApiKey) {
+      throw new Error("API key Paymenku belum diatur.");
+    }
+
+    const statusSnapshot = await checkPaymenkuTransactionStatus(
+      settings.paymenkuApiKey,
+      payment.providerTransactionId ?? payment.referenceId,
+    );
+
+    const updated = await updateMemberGuidePayment(payment.referenceId, {
+      expiresAt: statusSnapshot.expiresAt ?? payment.expiresAt,
+      message: statusSnapshot.message ?? payment.message,
+      paymentName: statusSnapshot.paymentName ?? payment.paymentName,
+      paymentNumber: statusSnapshot.paymentNumber ?? payment.paymentNumber,
+      paymentUrl: statusSnapshot.paymentUrl ?? payment.paymentUrl,
+      providerTransactionId: statusSnapshot.providerTransactionId ?? payment.providerTransactionId,
+      qrImageUrl: statusSnapshot.qrImageUrl ?? payment.qrImageUrl,
+      qrString: statusSnapshot.qrString ?? payment.qrString,
+      rawStatusResponse: statusSnapshot.raw ?? null,
+      status:
+        statusSnapshot.status === "paid" || statusSnapshot.status === "failed"
+          ? statusSnapshot.status
+          : "pending",
+    });
+
+    const isPaid = updated.status === "paid";
+
+    if (isPaid) {
+      await consumeAndUnlockGuide(updated);
+    }
+
+    return toPublicState(updated, isPaid);
   }
-
-  return toPublicState(updated, isPaid);
 }

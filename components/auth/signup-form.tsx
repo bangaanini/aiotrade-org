@@ -947,14 +947,7 @@ export function SignupForm({
                 );
               })}
             </div>
-            <div className="mt-3 rounded-2xl border border-slate-200 bg-white/85 px-4 py-3">
-              <p className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-slate-500">
-                Tujuan pembayaran atas nama
-              </p>
-              <p className="mt-2 text-sm font-semibold text-slate-950">
-                PT LIMBUNGAN MEDIA SOLUSI
-              </p>
-            </div>
+
           </div>
 
           <div className="mt-5 space-y-4">

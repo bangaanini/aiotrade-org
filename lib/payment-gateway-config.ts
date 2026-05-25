@@ -12,6 +12,19 @@ export const PAYMENKU_CHANNELS = [
   { code: "permata_va", name: "Permata Virtual Account", type: "va" },
 ] as const;
 
+export const PAKASIR_CHANNELS = [
+  { code: "bri_va", name: "BRI Virtual Account", type: "va" },
+  { code: "bni_va", name: "BNI Virtual Account", type: "va" },
+  { code: "cimb_niaga_va", name: "CIMB Niaga Virtual Account", type: "va" },
+  { code: "qris", name: "QRIS", type: "qris" },
+  { code: "sampoerna_va", name: "Sampoerna Virtual Account", type: "va" },
+  { code: "bnc_va", name: "BNC Virtual Account", type: "va" },
+  { code: "maybank_va", name: "Maybank Virtual Account", type: "va" },
+  { code: "permata_va", name: "Permata Virtual Account", type: "va" },
+  { code: "atm_bersama_va", name: "ATM Bersama Virtual Account", type: "va" },
+  { code: "artha_graha_va", name: "Artha Graha Virtual Account", type: "va" },
+] as const;
+
 export const DEFAULT_SUBSCRIPTION_PLANS = [
   {
     description: "Akses member standard selama 12 bulan.",
